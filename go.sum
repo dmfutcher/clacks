@@ -1,2 +1,6 @@
+github.com/hippoai/goerr v0.0.0-20170815205148-e21952e82e6e h1:y3Cmxs5joA6mMfuywB+cg5/Hb3RAxoXZpIVplEprv0c=
+github.com/hippoai/goerr v0.0.0-20170815205148-e21952e82e6e/go.mod h1:KHaiPBOipm/wsDgyikNknSuXYs4tVj9dsISmyOSa/f8=
+github.com/hippoai/graphgo v0.0.0-20170213171210-39b11a80ce2e h1:5nBEudWPd+9cVH11ZRyZSyf0kr7fAd9Rp6x2ZSqxzQY=
+github.com/hippoai/graphgo v0.0.0-20170213171210-39b11a80ce2e/go.mod h1:6BDhcb8v5cyq2yN/Z8WziWFRzGkNplxSqUXjCfMG1zs=
 github.com/pebbe/zmq4 v1.2.7 h1:6EaX83hdFSRUEhgzSW1E/SPoTS3JeYZgYkBvwdcrA9A=
 github.com/pebbe/zmq4 v1.2.7/go.mod h1:nqnPueOapVhE2wItZ0uOErngczsJdLOGkebMxaO8r48=
