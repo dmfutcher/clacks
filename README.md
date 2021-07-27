@@ -1,9 +1,13 @@
-= clacks =
-*clacks* is toy a simulation of a very simple message relaying network. 'Stations' are vertices on a graph, with edges between them representing interconnections. A message can be published by a station that passes it to all their peer stations, who in turn pass it to their peer stations. Entirely built so I can shake off some rust with Golang and play with a couple libraries. *clacks* uses Graphgo for the station graph, ZeroMQ for message transport and Protobuf for serialisation. 
+clacks
+======
+
+**This is not a place of honour. There is no value to be found here**. This is *enirely* built to shake off some rust with Golang and play with some libraries. Available here on the miniscule chance someone finds any of this useful.
+
+*clacks* is toy a simulation of a very simple message relaying network. Relaying 'Stations' are vertices on a graph, with edges between them representing some 'connection' media. Messages are published by Stations, who pass them on to adjacent stations, who in turn relay them on to *their* adjacent stations.
 
 
-
-== Run it ==
+Run it
+------
 
 ```
 brew install zeromq protobuf

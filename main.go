@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -63,14 +65,20 @@ func (station *Station) relay(frame *schema.Frame) {
 			fmt.Println("Failed to find neighbour stations from neighbour edge ", station.name)
 		}
 
-		peer_label := startNode.GetKey()
+		peerLabel := startNode.GetKey()
+
+		// Skip propagating message to the orgin or immediate predecessor stations
+		if peerLabel == frame.Source || peerLabel == frame.Referrer {
+			continue
+		}
+
 		requester, _ := zmq.NewSocket(zmq.REQ)
 		defer requester.Close()
-		requester.Connect(zmqAddress(peer_label))
+		requester.Connect(zmqAddress(peerLabel))
 
 		wireFormatFrame, _ := proto.Marshal(frame)
 		requester.SendBytes(wireFormatFrame, 0)
-		station.log(fmt.Sprint("SENT: ", frame, " to ", peer_label))
+		station.log(fmt.Sprint("SENT: ", frame, " to ", peerLabel))
 	}
 
 }
@@ -81,12 +89,15 @@ func (station *Station) publish(body string) {
 }
 
 func (station *Station) createMessage(body string) *schema.Frame {
+	hasher := sha256.New()
+	hasher.Write([]byte(body))
+	hash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
 	return &schema.Frame{
-		Id:     0,
+		Hash:   hash,
 		Source: station.name,
 		Body:   body,
 	}
-
 }
 
 func (station *Station) log(msg string) {
