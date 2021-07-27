@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"futcher.io/clacks/schema"
+
 	"github.com/hippoai/graphgo"
 	zmq "github.com/pebbe/zmq4"
+	"google.golang.org/protobuf/proto"
 )
 
 func zmqAddress(station string) string {
@@ -13,16 +16,16 @@ func zmqAddress(station string) string {
 }
 
 type Station struct {
-	name       string
-	socket     *zmq.Socket
-	graph_node *graphgo.Node
-	graph      *graphgo.Graph
+	name      string
+	socket    *zmq.Socket
+	graphNode *graphgo.Node
+	graph     *graphgo.Graph
 }
 
 func newStation(name string, node *graphgo.Node, graph *graphgo.Graph) *Station {
 	station := new(Station)
 	station.name = name
-	station.graph_node = node
+	station.graphNode = node
 	station.graph = graph
 
 	sock, _ := zmq.NewSocket(zmq.REP)
@@ -35,32 +38,53 @@ func newStation(name string, node *graphgo.Node, graph *graphgo.Graph) *Station 
 func (station *Station) serve() {
 	station.log("Listening")
 	for {
-		msg, _ := station.socket.Recv(0)
-		station.log(fmt.Sprint("RECEIVED: ", msg))
+		wireFrame, _ := station.socket.RecvBytes(0)
 		station.socket.Send("ACK", 0) // TODO: Use different ZeroMQ socket type to avoid insta-ack?
 
-		station.publish(msg) // TODO: Smarter publish / drop logic to deal with infinite loops
+		frame := &schema.Frame{}
+		if err := proto.Unmarshal(wireFrame, frame); err != nil {
+			station.log("Failed to unmarshal message from wire format")
+		}
+
+		station.log(fmt.Sprint("RECEIVED: ", frame))
+		station.relay(frame)
 	}
 }
 
-func (station *Station) publish(msg string) {
-	peer_edges, err := station.graph_node.OutE(station.graph, "CONNECTS")
+func (station *Station) relay(frame *schema.Frame) {
+	peerEdges, err := station.graphNode.OutE(station.graph, "CONNECTS")
 	if err != nil {
 		fmt.Println("Failed to find neighbour stations for ", station.name)
 	}
 
-	for _, edge := range peer_edges {
-		start_node, err := edge.EndN(station.graph)
+	for _, edge := range peerEdges {
+		startNode, err := edge.EndN(station.graph)
 		if err != nil {
 			fmt.Println("Failed to find neighbour stations from neighbour edge ", station.name)
 		}
 
-		peer_label := start_node.GetKey()
+		peer_label := startNode.GetKey()
 		requester, _ := zmq.NewSocket(zmq.REQ)
 		defer requester.Close()
 		requester.Connect(zmqAddress(peer_label))
-		requester.Send(msg, 0)
-		station.log(fmt.Sprint("SENT: ", msg, " to ", peer_label))
+
+		wireFormatFrame, _ := proto.Marshal(frame)
+		requester.SendBytes(wireFormatFrame, 0)
+		station.log(fmt.Sprint("SENT: ", frame, " to ", peer_label))
+	}
+
+}
+
+func (station *Station) publish(body string) {
+	frame := station.createMessage(body)
+	station.relay(frame)
+}
+
+func (station *Station) createMessage(body string) *schema.Frame {
+	return &schema.Frame{
+		Id:     0,
+		Source: station.name,
+		Body:   body,
 	}
 
 }
@@ -69,25 +93,25 @@ func (station *Station) log(msg string) {
 	fmt.Println("[", station.name, "]", msg)
 }
 
-func createStationNode(g *graphgo.Graph, label string, peer_station_labels []string) (*graphgo.Node, error) {
+func createStationNode(g *graphgo.Graph, label string, peerStationLabels []string) (*graphgo.Node, error) {
 	station := newStation(label, nil, g)
 	node, err := g.MergeNode(label, map[string]interface{}{"station": station})
 	if err != nil {
 		return nil, err
 	}
 
-	station.graph_node = node
+	station.graphNode = node
 
-	for _, peer_label := range peer_station_labels {
+	for _, peerLabel := range peerStationLabels {
 		g.MergeEdge(
-			fmt.Sprint("connect.", label, ".", peer_label), "CONNECTS",
-			label, peer_label,
+			fmt.Sprint("connect.", label, ".", peerLabel), "CONNECTS",
+			label, peerLabel,
 			map[string]interface{}{},
 		)
 
 		g.MergeEdge(
-			fmt.Sprint("connect.", peer_label, ".", label), "CONNECTS",
-			peer_label, label,
+			fmt.Sprint("connect.", peerLabel, ".", label), "CONNECTS",
+			peerLabel, label,
 			map[string]interface{}{},
 		)
 	}
@@ -97,9 +121,9 @@ func createStationNode(g *graphgo.Graph, label string, peer_station_labels []str
 	return node, nil
 }
 
-func newStationGraph(station_defs *map[string][]string) *graphgo.Graph {
+func newStationGraph(stationDefs *map[string][]string) *graphgo.Graph {
 	g := graphgo.NewEmptyGraph()
-	for station, peers := range *station_defs {
+	for station, peers := range *stationDefs {
 		createStationNode(g, station, peers)
 	}
 
@@ -107,18 +131,19 @@ func newStationGraph(station_defs *map[string][]string) *graphgo.Graph {
 }
 
 func main() {
-	station_defs := map[string][]string{
-		"station.0": []string{"station.1"},
-		"station.1": []string{"station.0"},
+	stationDefs := map[string][]string{
+		"station.0": {"station.1"},
+		"station.1": {"station.0"},
+		"station.2": {"station.1"},
 	}
 
-	graph := newStationGraph(&station_defs)
+	graph := newStationGraph(&stationDefs)
 
-	station_0_node, _ := graph.GetNode("station.0")
-	node_station, err := station_0_node.Get("station")
+	station0Node, _ := graph.GetNode("station.0")
+	nodeStation, err := station0Node.Get("station")
 	var station0 *Station
 	if err == nil {
-		station0 = node_station.(*Station)
+		station0 = nodeStation.(*Station)
 	} else {
 		fmt.Println("Failed to get station.0")
 	}
@@ -126,5 +151,6 @@ func main() {
 
 	station0.publish("TEST MESSAGE")
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(1 * time.Second)
+
 }
