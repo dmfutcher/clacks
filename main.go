@@ -9,15 +9,42 @@ import (
 	"github.com/hippoai/graphgo"
 )
 
-func createStationNode(g *graphgo.Graph, label string, peerStationLabels []string) (*graphgo.Node, error) {
+type Network struct {
+	graph *graphgo.Graph
+}
+
+func (n *Network) GetStation(label string) *station.Station {
+	stationNode, _ := n.graph.GetNode(label)
+	nodeStation, err := stationNode.Get("station")
+
+	if err == nil {
+		return nodeStation.(*station.Station)
+	} else {
+		return nil
+	}
+}
+
+func (n *Network) String() string {
+	return fmt.Sprintf("%v\n\n%v", n.graph.Nodes, n.graph.Edges)
+
+}
+
+func createStationNode(g *graphgo.Graph, label string) (*graphgo.Node, error) {
 	station := station.New(label, nil, g)
 	node, err := g.MergeNode(label, map[string]interface{}{"station": station})
 	if err != nil {
+		fmt.Println("Could not create node for ", station, err)
 		return nil, err
 	}
 
 	station.SetGraphNode(node)
 
+	go station.Serve()
+
+	return node, nil
+}
+
+func createStationConnections(g *graphgo.Graph, label string, peerStationLabels []string) {
 	for _, peerLabel := range peerStationLabels {
 		g.MergeEdge(
 			fmt.Sprint("connect.", label, ".", peerLabel), "CONNECTS",
@@ -31,46 +58,50 @@ func createStationNode(g *graphgo.Graph, label string, peerStationLabels []strin
 			map[string]interface{}{},
 		)
 	}
-
-	go station.Serve()
-
-	return node, nil
 }
 
-func newStationGraph(stationDefs *map[string][]string) *graphgo.Graph {
+func newNetwork(stationDefs *map[string][]string) *Network {
 	g := graphgo.NewEmptyGraph()
-	for station, peers := range *stationDefs {
-		createStationNode(g, station, peers)
+	for station := range *stationDefs {
+		createStationNode(g, station)
 	}
 
-	return g
+	for station, peerLabels := range *stationDefs {
+		createStationConnections(g, station, peerLabels)
+	}
+
+	fmt.Println("Created graph: ", len(g.Nodes), "Vertices/", len(g.Edges), "Edges")
+
+	return &Network{
+		graph: g,
+	}
 }
 
 func main() {
 	stationDefs := map[string][]string{
-		"station.0":   {"station.1", "station.3.2"},
+		"station.0":   {"station.1"},
 		"station.1":   {"station.0"},
 		"station.1.1": {"station.1"},
 		"station.2":   {"station.1"},
-		"station.3.0": {"station.1"},
+		"station.3.0": {"station.2"},
 		"station.3.1": {"station.3.0"},
-		"station.3.2": {"station.3.1", "station.0"},
+		"station.3.2": {"station.3.1"},
 	}
 
-	graph := newStationGraph(&stationDefs)
+	network := newNetwork(&stationDefs)
 
-	station0Node, _ := graph.GetNode("station.0")
-	nodeStation, err := station0Node.Get("station")
-	var station0 *station.Station
-	if err == nil {
-		station0 = nodeStation.(*station.Station)
-	} else {
-		fmt.Println("Failed to get station.0")
+	time.Sleep(3 * time.Second)
+	station := network.GetStation("station.2")
+
+	for i := 0; i < 1; i++ {
+		go station.Publish(fmt.Sprint("TEST MESSAGE", i))
 	}
-	time.Sleep(2 * time.Second)
-
-	station0.Publish("TEST MESSAGE")
 
 	time.Sleep(5 * time.Second)
+
+	for station := range stationDefs {
+		s := network.GetStation(station)
+		fmt.Println(station, s.Drops())
+	}
 
 }

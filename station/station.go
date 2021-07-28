@@ -52,6 +52,8 @@ func (station *Station) Serve() {
 			station.log("Failed to unmarshal message from wire format")
 		}
 
+		fmt.Printf(".")
+
 		station.relay(frame)
 	}
 }
@@ -82,9 +84,8 @@ func (station *Station) relay(frame *schema.Frame) {
 			fmt.Println("Failed to find neighbour stations from neighbour edge ", station.name)
 		}
 
-		peerLabel := startNode.GetKey()
-
 		// Skip propagating message to the orgin or immediate predecessor stations
+		peerLabel := startNode.GetKey()
 		if peerLabel == frame.Source || peerLabel == originalReferrer {
 			continue
 		}
@@ -124,4 +125,15 @@ func (station *Station) log(msg string) {
 
 func (station *Station) SetGraphNode(node *graphgo.Node) {
 	station.graphNode = node
+}
+
+func (station *Station) Drops() []string {
+	dropsValues := station.drops.Values()
+	drops := []string{}
+
+	for _, drop := range dropsValues {
+		drops = append(drops, drop.(string))
+	}
+
+	return drops
 }
