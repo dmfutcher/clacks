@@ -30,7 +30,7 @@ func (n *Network) String() string {
 }
 
 func createStationNode(g *graphgo.Graph, label string) (*graphgo.Node, error) {
-	station := station.New(label, nil, g)
+	station := station.New(label, g)
 	node, err := g.MergeNode(label, map[string]interface{}{"station": station})
 	if err != nil {
 		fmt.Println("Could not create node for ", station, err)
@@ -93,7 +93,7 @@ func main() {
 	time.Sleep(3 * time.Second)
 	station := network.GetStation("station.2")
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		go station.Publish(fmt.Sprint("TEST MESSAGE", i))
 	}
 
@@ -101,7 +101,7 @@ func main() {
 
 	for station := range stationDefs {
 		s := network.GetStation(station)
-		fmt.Println(station, s.Drops())
+		fmt.Println(station, s.Drops(), len(s.Drops()))
 	}
 
 }

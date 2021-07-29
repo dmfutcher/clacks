@@ -24,18 +24,17 @@ type Station struct {
 	drops     *ring.Ring
 }
 
-func New(name string, node *graphgo.Node, graph *graphgo.Graph) *Station {
+func New(name string, graph *graphgo.Graph) *Station {
 	station := &Station{
-		name:      name,
-		graphNode: node,
-		graph:     graph,
+		name:  name,
+		graph: graph,
 	}
 
-	sock, _ := zmq.NewSocket(zmq.REP)
+	sock, _ := zmq.NewSocket(zmq.PULL)
 	sock.Bind(zmqAddress(name))
 	station.socket = sock
 
-	station.drops = &ring.Ring{}
+	station.drops = new(ring.Ring)
 	station.drops.SetCapacity(10)
 
 	return station
@@ -45,14 +44,11 @@ func (station *Station) Serve() {
 	station.log("Listening")
 	for {
 		wireFrame, _ := station.socket.RecvBytes(0)
-		station.socket.Send("ACK", 0) // TODO: Use different ZeroMQ socket type to avoid insta-ack?
-
 		frame := &schema.Frame{}
+
 		if err := proto.Unmarshal(wireFrame, frame); err != nil {
 			station.log("Failed to unmarshal message from wire format")
 		}
-
-		fmt.Printf(".")
 
 		station.relay(frame)
 	}
@@ -90,7 +86,7 @@ func (station *Station) relay(frame *schema.Frame) {
 			continue
 		}
 
-		requester, _ := zmq.NewSocket(zmq.REQ)
+		requester, _ := zmq.NewSocket(zmq.PUSH)
 		defer requester.Close()
 		requester.Connect(zmqAddress(peerLabel))
 
