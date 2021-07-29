@@ -1,4 +1,4 @@
-module futcher.io/clacks
+module github.com/dmfutcher/clacks
 
 go 1.16
 

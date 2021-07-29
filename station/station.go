@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"futcher.io/clacks/schema"
+	"github.com/dmfutcher/clacks/schema"
 	"github.com/hippoai/graphgo"
 	zmq "github.com/pebbe/zmq4"
 	ring "github.com/zealws/golang-ring"

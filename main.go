@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"futcher.io/clacks/station"
+	"github.com/dmfutcher/clacks/station"
 
 	"github.com/hippoai/graphgo"
 )
